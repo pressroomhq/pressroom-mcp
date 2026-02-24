@@ -1,0 +1,14 @@
+[project]
+name = "pressroom-mcp"
+version = "0.1.0"
+description = "Pressroom MCP Server — run the full Pressroom pipeline headless"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "httpx",
+    "python-dotenv",
+]
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
