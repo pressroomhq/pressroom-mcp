@@ -1358,6 +1358,742 @@ async def pressroom_list_email_drafts(org_id: int, status: str = "", limit: int 
     return f"{len(data)} email drafts:\n" + "\n".join(rows)
 
 
+# ─── Blog management tools ───────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_blog_scrape(org_id: int, url: str) -> str:
+    """Scrape a blog post from a URL and import it into Pressroom.
+
+    Args:
+        org_id: The organization ID.
+        url: The blog post URL to scrape.
+    """
+    data = await api_post("/api/blog/scrape", org_id=org_id, body={"url": url})
+    if err := _check_error(data):
+        return err
+    return (
+        f"Blog post scraped: #{data.get('id', '?')}\n"
+        f"Title: {data.get('title', '?')}\n"
+        f"URL: {url}"
+    )
+
+
+@mcp.tool()
+async def pressroom_blog_list(org_id: int) -> str:
+    """List all blog posts for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/blog/posts", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No blog posts found."
+    rows = []
+    for p in data:
+        rows.append(
+            f"  #{p.get('id', '?')} {p.get('title', '?')} — {p.get('url', '')}"
+        )
+    return f"{len(data)} blog posts:\n" + "\n".join(rows)
+
+
+@mcp.tool()
+async def pressroom_blog_delete(org_id: int, post_id: int) -> str:
+    """Delete a blog post from the org.
+
+    Args:
+        org_id: The organization ID.
+        post_id: The blog post ID to delete.
+    """
+    data = await api_delete(f"/api/blog/posts/{post_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"Blog post #{post_id} deleted."
+
+
+# ─── Google Search Console tools ─────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_gsc_status(org_id: int) -> str:
+    """Check Google Search Console connection status for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/gsc/status", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_gsc_properties(org_id: int) -> str:
+    """List Google Search Console properties available for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/gsc/properties", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No GSC properties found."
+    rows = []
+    for p in data:
+        rows.append(f"  {p.get('siteUrl', p.get('url', '?'))}")
+    return f"{len(data)} GSC properties:\n" + "\n".join(rows)
+
+
+@mcp.tool()
+async def pressroom_gsc_set_property(org_id: int, property_url: str) -> str:
+    """Set the active Google Search Console property for an org.
+
+    Args:
+        org_id: The organization ID.
+        property_url: The GSC property URL to set as active.
+    """
+    data = await api_put("/api/gsc/property", org_id=org_id, body={"property_url": property_url})
+    if err := _check_error(data):
+        return err
+    return f"GSC property set to: {property_url}"
+
+
+@mcp.tool()
+async def pressroom_gsc_analytics(org_id: int, days: int = 28) -> str:
+    """Get Google Search Console analytics data for an org.
+
+    Args:
+        org_id: The organization ID.
+        days: Number of days to look back (default 28).
+    """
+    data = await api_get("/api/gsc/analytics", org_id=org_id, params={"days": days})
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_gsc_summary(org_id: int) -> str:
+    """Get a summary of Google Search Console performance for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/gsc/summary", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_gsc_blog_performance(org_id: int) -> str:
+    """Get Google Search Console performance data for blog posts.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/gsc/blog-performance", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_gsc_inspect_url(org_id: int, url: str) -> str:
+    """Inspect a URL in Google Search Console to check indexing status.
+
+    Args:
+        org_id: The organization ID.
+        url: The URL to inspect.
+    """
+    data = await api_post("/api/gsc/inspect", org_id=org_id, body={"url": url})
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Site properties tools ───────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_list_properties(org_id: int) -> str:
+    """List site properties for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/properties", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No site properties found."
+    rows = []
+    for p in data:
+        rows.append(
+            f"  #{p.get('id', '?')} [{p.get('type', '?')}] {p.get('name', '?')}: {p.get('value', '')}"
+        )
+    return f"{len(data)} properties:\n" + "\n".join(rows)
+
+
+@mcp.tool()
+async def pressroom_create_property(
+    org_id: int, name: str, value: str, prop_type: str = "domain"
+) -> str:
+    """Create a site property for an org.
+
+    Args:
+        org_id: The organization ID.
+        name: Property name.
+        value: Property value.
+        prop_type: Property type (default "domain").
+    """
+    data = await api_post(
+        "/api/properties",
+        org_id=org_id,
+        body={"name": name, "value": value, "type": prop_type},
+    )
+    if err := _check_error(data):
+        return err
+    return f"Property created: #{data.get('id', '?')} {data.get('name', '?')}"
+
+
+@mcp.tool()
+async def pressroom_update_property(org_id: int, property_id: int, value: str) -> str:
+    """Update a site property value.
+
+    Args:
+        org_id: The organization ID.
+        property_id: The property ID to update.
+        value: New property value.
+    """
+    data = await api_put(
+        f"/api/properties/{property_id}",
+        org_id=org_id,
+        body={"value": value},
+    )
+    if err := _check_error(data):
+        return err
+    return f"Property #{property_id} updated."
+
+
+@mcp.tool()
+async def pressroom_delete_property(org_id: int, property_id: int) -> str:
+    """Delete a site property.
+
+    Args:
+        org_id: The organization ID.
+        property_id: The property ID to delete.
+    """
+    data = await api_delete(f"/api/properties/{property_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"Property #{property_id} deleted."
+
+
+# ─── Brand tools ─────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_brand_scrape(org_id: int, domain: str) -> str:
+    """Scrape brand information from a domain.
+
+    Args:
+        org_id: The organization ID.
+        domain: The domain to scrape brand info from.
+    """
+    data = await api_post("/api/brand/scrape", org_id=org_id, body={"domain": domain})
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_brand_get(org_id: int) -> str:
+    """Get the brand profile for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get(f"/api/brand/{org_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Asset tools ─────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_list_assets(org_id: int, asset_type: str = "") -> str:
+    """List assets for an org, optionally filtered by type.
+
+    Args:
+        org_id: The organization ID.
+        asset_type: Optional asset type filter (leave empty for all).
+    """
+    params: dict[str, Any] = {}
+    if asset_type:
+        params["type"] = asset_type
+    data = await api_get("/api/assets", org_id=org_id, params=params)
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No assets found."
+    rows = []
+    for a in data:
+        rows.append(
+            f"  #{a.get('id', '?')} [{a.get('type', '?')}] {a.get('name', '?')} — {a.get('url', '')}"
+        )
+    return f"{len(data)} assets:\n" + "\n".join(rows)
+
+
+@mcp.tool()
+async def pressroom_create_asset(org_id: int, name: str, url: str, asset_type: str) -> str:
+    """Create an asset for an org.
+
+    Args:
+        org_id: The organization ID.
+        name: Asset name.
+        url: Asset URL.
+        asset_type: Asset type (e.g. "image", "logo", "document").
+    """
+    data = await api_post(
+        "/api/assets",
+        org_id=org_id,
+        body={"name": name, "url": url, "type": asset_type},
+    )
+    if err := _check_error(data):
+        return err
+    return f"Asset created: #{data.get('id', '?')} [{data.get('type', '?')}] {data.get('name', '?')}"
+
+
+@mcp.tool()
+async def pressroom_delete_asset(org_id: int, asset_id: int) -> str:
+    """Delete an asset from an org.
+
+    Args:
+        org_id: The organization ID.
+        asset_id: The asset ID to delete.
+    """
+    data = await api_delete(f"/api/assets/{asset_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"Asset #{asset_id} deleted."
+
+
+# ─── Content performance tools ───────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_content_performance(org_id: int) -> str:
+    """Get performance metrics for all published content.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/content/published/performance", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_fetch_performance(org_id: int, content_id: int) -> str:
+    """Fetch latest performance data for a specific content item.
+
+    Args:
+        org_id: The organization ID.
+        content_id: The content item ID.
+    """
+    data = await api_post(f"/api/content/{content_id}/fetch-performance", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Team enhancement tools ─────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_update_team_member(
+    org_id: int, member_id: int, name: str = "", title: str = "", bio: str = ""
+) -> str:
+    """Update a team member's details. Only non-empty fields are sent.
+
+    Args:
+        org_id: The organization ID.
+        member_id: The team member ID.
+        name: New name (leave empty to keep current).
+        title: New title (leave empty to keep current).
+        bio: New bio (leave empty to keep current).
+    """
+    body: dict[str, Any] = {}
+    if name:
+        body["name"] = name
+    if title:
+        body["title"] = title
+    if bio:
+        body["bio"] = bio
+    if not body:
+        return "Nothing to update — provide name, title, or bio."
+    data = await api_put(f"/api/team/{member_id}", org_id=org_id, body=body)
+    if err := _check_error(data):
+        return err
+    return f"Team member #{member_id} updated."
+
+
+@mcp.tool()
+async def pressroom_analyze_voice(org_id: int, member_id: int) -> str:
+    """Analyze a team member's writing voice from their content samples.
+
+    Args:
+        org_id: The organization ID.
+        member_id: The team member ID.
+    """
+    data = await api_post(f"/api/team/{member_id}/analyze-voice", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_team_gist_check(org_id: int) -> str:
+    """Check gist status for all team members in an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/team/gist-check", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_generate_gist(org_id: int, member_id: int) -> str:
+    """Generate a gist (author bio page) for a team member.
+
+    Args:
+        org_id: The organization ID.
+        member_id: The team member ID.
+    """
+    data = await api_post(f"/api/team/{member_id}/generate-gist", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_publish_gist(org_id: int, member_id: int) -> str:
+    """Publish a team member's gist (author bio page).
+
+    Args:
+        org_id: The organization ID.
+        member_id: The team member ID.
+    """
+    data = await api_post(f"/api/team/{member_id}/publish-gist", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── YouTube enhancement tools ──────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_youtube_update(
+    org_id: int, script_id: int, title: str = "", hook: str = ""
+) -> str:
+    """Update a YouTube script's title or hook. Only non-empty fields are sent.
+
+    Args:
+        org_id: The organization ID.
+        script_id: The YouTube script ID.
+        title: New title (leave empty to keep current).
+        hook: New hook (leave empty to keep current).
+    """
+    body: dict[str, Any] = {}
+    if title:
+        body["title"] = title
+    if hook:
+        body["hook"] = hook
+    if not body:
+        return "Nothing to update — provide title or hook."
+    data = await api_patch(f"/api/youtube/scripts/{script_id}", org_id=org_id, body=body)
+    if err := _check_error(data):
+        return err
+    return f"YouTube script #{script_id} updated."
+
+
+@mcp.tool()
+async def pressroom_youtube_delete(org_id: int, script_id: int) -> str:
+    """Delete a YouTube script.
+
+    Args:
+        org_id: The organization ID.
+        script_id: The YouTube script ID to delete.
+    """
+    data = await api_delete(f"/api/youtube/scripts/{script_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"YouTube script #{script_id} deleted."
+
+
+@mcp.tool()
+async def pressroom_youtube_render(org_id: int, script_id: int) -> str:
+    """Render a YouTube script into a video via Remotion.
+
+    Args:
+        org_id: The organization ID.
+        script_id: The YouTube script ID to render.
+    """
+    data = await api_post(f"/api/youtube/scripts/{script_id}/render", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_youtube_publish_video(org_id: int, script_id: int) -> str:
+    """Publish a rendered YouTube video.
+
+    Args:
+        org_id: The organization ID.
+        script_id: The YouTube script ID to publish.
+    """
+    data = await api_post(f"/api/youtube/scripts/{script_id}/publish-rendered", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Medium tools ────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_medium_publish(org_id: int, content_id: int) -> str:
+    """Publish a content item to Medium.
+
+    Args:
+        org_id: The organization ID.
+        content_id: The content item ID to publish to Medium.
+    """
+    data = await api_post("/api/medium/publish", org_id=org_id, body={"content_id": content_id})
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Slack tools ─────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_slack_test(org_id: int) -> str:
+    """Send a test message to the org's configured Slack channel.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_post("/api/slack/test", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return "Slack test message sent successfully."
+
+
+@mcp.tool()
+async def pressroom_slack_notify(org_id: int, content_id: int) -> str:
+    """Send a Slack notification for a specific content item.
+
+    Args:
+        org_id: The organization ID.
+        content_id: The content item ID to notify about.
+    """
+    data = await api_post(f"/api/slack/notify/{content_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"Slack notification sent for content #{content_id}."
+
+
+@mcp.tool()
+async def pressroom_slack_notify_queue(org_id: int) -> str:
+    """Send Slack notifications for all queued content items.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_post("/api/slack/notify-queue", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Token usage tools ──────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_usage(org_id: int) -> str:
+    """Get current token usage summary for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/usage", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_usage_history(org_id: int) -> str:
+    """Get token usage history for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/usage/history", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Import tools ────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_import_paste(org_id: int, text: str, channel: str = "linkedin") -> str:
+    """Import content by pasting text directly. Creates a content item from raw text.
+
+    Args:
+        org_id: The organization ID.
+        text: The text content to import.
+        channel: Target channel (default "linkedin").
+    """
+    data = await api_post(
+        "/api/import/paste",
+        org_id=org_id,
+        body={"text": text, "channel": channel},
+    )
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Activity log tools ─────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_log(org_id: int, limit: int = 20) -> str:
+    """Get the activity log for an org.
+
+    Args:
+        org_id: The organization ID.
+        limit: Max log entries to return (default 20).
+    """
+    data = await api_get("/api/log", org_id=org_id, params={"limit": limit})
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No activity log entries."
+    rows = []
+    for entry in data:
+        rows.append(
+            f"  [{entry.get('created_at', '?')}] {entry.get('action', '?')} — {entry.get('detail', '')}"
+        )
+    return f"{len(data)} log entries:\n" + "\n".join(rows)
+
+
+# ─── Company audit tools ────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_company_audit(org_id: int) -> str:
+    """Run a full company audit — checks content, SEO, brand, and team completeness.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_post("/api/company/audit", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Scoreboard enhancement tools ───────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_team_activity(org_id: int) -> str:
+    """Get team activity metrics from the scoreboard.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get(f"/api/scoreboard/{org_id}/team-activity", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+# ─── Data source tools ──────────────────────────────────────────────────────
+
+@mcp.tool()
+async def pressroom_list_datasources(org_id: int) -> str:
+    """List data sources for an org.
+
+    Args:
+        org_id: The organization ID.
+    """
+    data = await api_get("/api/datasources", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    if not data:
+        return "No data sources configured."
+    rows = []
+    for ds in data:
+        rows.append(
+            f"  #{ds.get('id', '?')} [{ds.get('type', '?')}] {ds.get('name', '?')}"
+        )
+    return f"{len(data)} data sources:\n" + "\n".join(rows)
+
+
+@mcp.tool()
+async def pressroom_create_datasource(
+    org_id: int, name: str, type: str, config: dict[str, Any]
+) -> str:
+    """Create a new data source for an org.
+
+    Args:
+        org_id: The organization ID.
+        name: Data source name.
+        type: Data source type.
+        config: Configuration dict for the data source.
+    """
+    data = await api_post(
+        "/api/datasources",
+        org_id=org_id,
+        body={"name": name, "type": type, "config": config},
+    )
+    if err := _check_error(data):
+        return err
+    return f"Data source created: #{data.get('id', '?')} [{data.get('type', '?')}] {data.get('name', '?')}"
+
+
+@mcp.tool()
+async def pressroom_test_datasource(org_id: int, ds_id: int) -> str:
+    """Test a data source connection.
+
+    Args:
+        org_id: The organization ID.
+        ds_id: The data source ID to test.
+    """
+    data = await api_post(f"/api/datasources/{ds_id}/test", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return json.dumps(data, indent=2, default=str)
+
+
+@mcp.tool()
+async def pressroom_delete_datasource(org_id: int, ds_id: int) -> str:
+    """Delete a data source.
+
+    Args:
+        org_id: The organization ID.
+        ds_id: The data source ID to delete.
+    """
+    data = await api_delete(f"/api/datasources/{ds_id}", org_id=org_id)
+    if err := _check_error(data):
+        return err
+    return f"Data source #{ds_id} deleted."
+
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
